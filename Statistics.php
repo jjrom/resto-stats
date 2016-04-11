@@ -95,7 +95,7 @@ class Statistics extends RestoModule {
          * Only administrators can access this module
          */
         if (!$this->user->isAdmin()) {
-            //RestoLogUtil::httpError(403);
+            RestoLogUtil::httpError(403);
         }
 
         /*
