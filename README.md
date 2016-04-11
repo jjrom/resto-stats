@@ -17,7 +17,7 @@ Add following lines to resto configuration file (include/config.php) in module s
 # Routes
 ## Get
 
-Base route : {resto_route}/{module_route}
+HTTP GET on {resto_route}/{module_route} (for example : https://localhost/resto/stats)
 
 Route | Comments
 ----- | --------
