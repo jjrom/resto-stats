@@ -24,14 +24,13 @@ Add :
 Add following lines to resto configuration file (include/config.php) in module section :
 
         'Statistics' => array(
-            'activate' => true,
-            'route' => 'stats',
+            'activate' => true, // true/false : to activate or not the module
+            'route' => 'stats', // route to this module
             'options' => array(
-                'schema' => 'stats'
+                'schema' => 'stats' // database schema containing statistics informations, default stats
             )
         ),
 
-POST countries.geojson {resto_route}/{module_route}/stats/countries
 
 # Routes
 ## Get
