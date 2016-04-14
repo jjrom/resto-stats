@@ -13,9 +13,11 @@ Launch following script to add stats schema in resto database :
 
         _install/installDB.sh
 
-Add -h to display options help.
-Add -d <database name> to change database.
-Add -F option to delete existing stats schema.
+Add :
+
+    -h to display options help.
+    -d <database name> to change database.
+    -F option to delete existing stats schema.
 
 # Configuration
 
