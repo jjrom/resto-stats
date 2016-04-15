@@ -87,8 +87,8 @@ class Statistics extends RestoModule {
      */
     public function run($segments, $data) {
 
-        if (isset($this->options['database']) && isset($this->options['database']['schema'])) {
-            $this->schema = $this->options['database']['schema'];
+        if (isset($this->options['schema'])) {
+            $this->schema = $this->options['schema'];
         }
 
         /*
@@ -104,8 +104,6 @@ class Statistics extends RestoModule {
         switch ($this->context->method) {
             case 'GET':
                 return $this->processGET($segments, $data);
-            case 'POST':
-                return $this->processPOST($segments, $data);
             default:
                 RestoLogUtil::httpError(404);
         }
@@ -134,75 +132,6 @@ class Statistics extends RestoModule {
                 return $this->GET_new($segments);
             default:
                 RestoLogUtil::httpError(404);
-        }
-    }
-
-    /**
-     * Process HTTP POST
-     * 
-     * @param array $segments
-     * @return type
-     */
-    private function processPOST($segments) {
-        // Input data for POST request
-        $data = RestoUtil::readInputData($this->context->uploadDirectory);
-
-        $segment = array_shift($segments);
-        switch ($segment) {
-            case 'countries':
-                return $this->POST_countries($segments, $data);
-            default:
-                RestoLogUtil::httpError(404);
-        }
-    }
-
-    /**
-     * Processe HTTP POST over countries
-     * 
-     * @param array $segments
-     * @param array $data
-     */
-    private function POST_countries($segments, $data) {
-        $segment = array_shift($segments);
-        if ($segment) {
-            RestoLogUtil::httpError(404);
-        }
-
-        $features = $data['features'];
-        foreach ($features as $feature) {
-            // Initialize columns array
-            $wkt = RestoGeometryUtil::geoJSONGeometryToWKT($feature['geometry']);
-            $extent = RestoGeometryUtil::getExtent($wkt);
-
-            // Compute "in house centroid" to avoid -180/180 date line issue
-            $factor = 1;
-            if (abs($extent[2] - $extent[0]) >= 180) {
-                $factor = -1;
-            }
-
-            $columns = array(
-                'identifier' => '\'' . $feature['id'] . '\'',
-                'name' => '\'' . $feature['properties']['name'] . '\'',
-                'geometry' => 'ST_GeomFromText(\'' . $wkt . '\', 4326)',
-                'centroid' => 'ST_GeomFromText(\'POINT(' . (($extent[2] + ($extent[0] * $factor)) / 2.0) . ' ' . (($extent[3] + $extent[1]) / 2.0) . ')\', 4326)'
-            );
-
-            try {
-
-                /*
-                 * Start transaction
-                 */
-                pg_query($this->context->dbDriver->dbh, 'BEGIN');
-
-                /*
-                 * Store feature
-                 */
-                pg_query($this->context->dbDriver->dbh, 'INSERT INTO ' . $this->schema . '.countries (' . join(',', array_keys($columns)) . ') VALUES (' . join(',', array_values($columns)) . ')');
-                pg_query($this->context->dbDriver->dbh, 'COMMIT');
-            } catch (Exception $e) {
-                pg_query($this->context->dbDriver->dbh, 'ROLLBACK');
-                RestoLogUtil::httpError(500, 'Feature ' . $feature['id'] . ' cannot be inserted in database');
-            }
         }
     }
 
@@ -450,7 +379,7 @@ class Statistics extends RestoModule {
         $limit = array_key_exists('_limit', $this->context->query) ? $this->context->query['_limit'] : null;
 
         // Construct query
-        $query = "SELECT email AS userid, count(email) AS count from usermanagement.history WHERE service = '" . $service . "' AND collection" . ($collection ? "='" . $collection . "'" : "<>'*'") . ($mindate ? " AND querytime > '" . $mindate . "'" : "") . ($maxdate ? " AND querytime < '" . $maxdate . "'" : "") . " GROUP BY userid ORDER BY count DESC " . ($limit ? " LIMIT " . $limit : "");
+        $query = "SELECT email AS userid, count(email) AS count from usermanagement.history WHERE service = '" . pg_escape_string($service) . "' AND collection" . ($collection ? "='" . pg_escape_string($collection) . "'" : "<>'*'") . ($mindate ? " AND querytime > '" . pg_escape_string($mindate) . "'" : "") . ($maxdate ? " AND querytime < '" . pg_escape_string($maxdate) . "'" : "") . " GROUP BY userid ORDER BY count DESC " . ($limit ? " LIMIT " . pg_escape_string($limit) : "");
 
         // Return resutls
         return $this->context->dbDriver->fetch($this->context->dbDriver->query($query));
@@ -464,7 +393,7 @@ class Statistics extends RestoModule {
         $limit = array_key_exists('_limit', $this->context->query) ? $this->context->query['_limit'] : null;
 
         // Construct query
-        $query = "SELECT resourceid AS resourceid, collection AS collection, count(resourceid) AS count from usermanagement.history WHERE service = '" . $service . "' AND collection" . ($collection ? "='" . $collection . "'" : "<>'*'") . ($mindate ? " AND querytime > '" . $mindate . "'" : "") . ($maxdate ? " AND querytime < '" . $maxdate . "'" : "") . " GROUP BY resourceid, collection ORDER BY count DESC " . ($limit ? " LIMIT " . $limit : "");
+        $query = "SELECT resourceid AS resourceid, collection AS collection, count(resourceid) AS count from usermanagement.history WHERE service = '" . pg_escape_string($service) . "' AND collection" . ($collection ? "='" . pg_escape_string($collection) . "'" : "<>'*'") . ($mindate ? " AND querytime > '" . pg_escape_string($mindate) . "'" : "") . ($maxdate ? " AND querytime < '" . pg_escape_string($maxdate) . "'" : "") . " GROUP BY resourceid, collection ORDER BY count DESC " . ($limit ? " LIMIT " . pg_escape_string($limit) : "");
 
         // Return resutls
         return $this->context->dbDriver->fetch($this->context->dbDriver->query($query));
@@ -477,7 +406,7 @@ class Statistics extends RestoModule {
         $maxdate = array_key_exists('_maxdate', $this->context->query) ? $this->context->query['_maxdate'] : null;
 
         // Construct query
-        $query = "SELECT to_char(querytime, 'YYYY-MM') AS date, resourceid AS resourceid, collection AS collection, count(querytime) AS count from usermanagement.history WHERE service = '" . $service . "' AND collection" . ($collection ? "='" . $collection . "'" : "<>'*'") . ($mindate ? " AND querytime > '" . $mindate . "'" : "") . ($maxdate ? " AND querytime < '" . $maxdate . "'" : "") . " GROUP BY to_char(querytime, 'YYYY-MM'), collection, resourceid ORDER BY date";
+        $query = "SELECT to_char(querytime, 'YYYY-MM') AS date, resourceid AS resourceid, collection AS collection, count(querytime) AS count from usermanagement.history WHERE service = '" . pg_escape_string($service) . "' AND collection" . ($collection ? "='" . pg_escape_string($collection) . "'" : "<>'*'") . ($mindate ? " AND querytime > '" . pg_escape_string($mindate) . "'" : "") . ($maxdate ? " AND querytime < '" . pg_escape_string($maxdate) . "'" : "") . " GROUP BY to_char(querytime, 'YYYY-MM'), collection, resourceid ORDER BY date";
 
         // Return resutls
         return $this->context->dbDriver->fetch($this->context->dbDriver->query($query));
@@ -494,7 +423,7 @@ class Statistics extends RestoModule {
         $collection = array_key_exists('collection', $this->context->query) ? $this->context->query['collection'] : null;
 
         // Construct query
-        $query = "SELECT to_char(querytime, 'YYYY-MM') AS date, collection AS collection, count(querytime) AS count from usermanagement.history WHERE service = '" . $service . "' AND collection" . ($collection ? "='" . $collection . "'" : "<>'*'") . " GROUP BY to_char(querytime, 'YYYY-MM'), collection ORDER BY date";
+        $query = "SELECT to_char(querytime, 'YYYY-MM') AS date, collection AS collection, count(querytime) AS count from usermanagement.history WHERE service = '" . pg_escape_string($service) . "' AND collection" . ($collection ? "='" . pg_escape_string($collection) . "'" : "<>'*'") . " GROUP BY to_char(querytime, 'YYYY-MM'), collection ORDER BY date";
 
         // Return resutls
         return $this->context->dbDriver->fetch($this->context->dbDriver->query($query));
@@ -511,7 +440,7 @@ class Statistics extends RestoModule {
         $collection = array_key_exists('collection', $this->context->query) ? $this->context->query['collection'] : null;
 
         // Construct query
-        $query = "SELECT to_char(querytime, 'YYYY-MM') AS date, collection AS collection, count(querytime) AS count from usermanagement.history WHERE service = '" . $service . "' AND collection" . ($collection ? "='" . $collection . "'" : "<>'*'") . " AND querytime > now() - interval '" . $this->recentMonthNumber . " month' GROUP BY to_char(querytime, 'YYYY-MM'), collection ORDER BY date";
+        $query = "SELECT to_char(querytime, 'YYYY-MM') AS date, collection AS collection, count(querytime) AS count from usermanagement.history WHERE service = '" . pg_escape_string($service) . "' AND collection" . ($collection ? "='" . pg_escape_string($collection) . "'" : "<>'*'") . " AND querytime > now() - interval '" . $this->recentMonthNumber . " month' GROUP BY to_char(querytime, 'YYYY-MM'), collection ORDER BY date";
 
         // Return resutls
         return $this->context->dbDriver->fetch($this->context->dbDriver->query($query));
@@ -577,7 +506,7 @@ class Statistics extends RestoModule {
         }
 
         // Get counts from database
-        $results = $this->context->dbDriver->query('SELECT distinct ' . $field . ',count(' . $field . ') as count FROM usermanagement.users group by ' . $field);
+        $results = $this->context->dbDriver->query('SELECT distinct ' . pg_escape_string($field) . ',count(' . pg_escape_string($field) . ') as count FROM usermanagement.users group by ' . pg_escape_string($field));
         $counts = array();
         while ($count = pg_fetch_assoc($results)) {
             if ($count[$field]) {
