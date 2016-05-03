@@ -56,11 +56,6 @@
  * 
  */
 class Statistics extends RestoModule {
-    /*
-     * Default schema in which are stored additionals tables
-     */
-
-    private $schema = false;
 
     /*
      * Number of months to search over in case of recent items search
@@ -86,10 +81,6 @@ class Statistics extends RestoModule {
      * @return string : result from run process in the $context->outputFormat
      */
     public function run($segments, $data) {
-
-        if (isset($this->options['schema'])) {
-            $this->schema = $this->options['schema'];
-        }
 
         /*
          * Only administrators can access this module
@@ -585,18 +576,16 @@ class Statistics extends RestoModule {
      */
     private function stats_users_countries_geometry() {
 
-        /*
-         * This function requires statistics database schema installed
-         */
-        if (!$this->schema) {
-            RestoLogUtil::httpError(404);
-        }
-
         // Construct SQL request
-        $request = "select $this->schema.countries.identifier as id, $this->schema.countries.name as name, count(usermanagement.users.country) as count, st_asgeojson($this->schema.countries.geometry) as geometry from usermanagement.users INNER JOIN $this->schema.countries ON usermanagement.users.country = lower($this->schema.countries.name) GROUP BY usermanagement.users.country, $this->schema.countries.identifier, $this->schema.countries.name, $this->schema.countries.geometry;";
+        $request = "select resto.countries.identifier as id, resto.countries.name as name, count(usermanagement.users.country) as count, st_asgeojson(resto.countries.geometry) as geometry from usermanagement.users INNER JOIN resto.countries ON usermanagement.users.country = lower(resto.countries.name) GROUP BY usermanagement.users.country, resto.countries.identifier, resto.countries.name, resto.countries.geometry;";
 
         // Get results
         $data = $this->context->dbDriver->fetch(pg_query($this->context->dbDriver->dbh, $request));
+        
+        if (!is_array($data)){
+            RestoLogUtil::httpError(500, 'Cannot get users country informations');
+        }
+        
         $final_features = array();
 
         /*
@@ -650,14 +639,7 @@ class Statistics extends RestoModule {
 
     private function stats_users_countries_centroid() {
 
-        /*
-         * This function requires statistics database schema installed
-         */
-        if (!$this->schema) {
-            RestoLogUtil::httpError(404);
-        }
-
-        $request = "select $this->schema.countries.identifier as id, $this->schema.countries.name as name, count(usermanagement.users.country) as count, st_asgeojson($this->schema.countries.centroid) as centroid from usermanagement.users INNER JOIN $this->schema.countries ON usermanagement.users.country = lower($this->schema.countries.name) GROUP BY usermanagement.users.country, $this->schema.countries.identifier, $this->schema.countries.name, $this->schema.countries.centroid;";
+        $request = "select resto.countries.identifier as id, resto.countries.name as name, count(usermanagement.users.country) as count, st_asgeojson(resto.countries.centroid) as centroid from usermanagement.users INNER JOIN resto.countries ON usermanagement.users.country = lower(resto.countries.name) GROUP BY usermanagement.users.country, resto.countries.identifier, resto.countries.name, resto.countries.centroid;";
 
         $data = $this->context->dbDriver->fetch(pg_query($this->context->dbDriver->dbh, $request));
         $final_features = array();
